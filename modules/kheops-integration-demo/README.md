@@ -1,6 +1,6 @@
 # Kheops Integration Demo
 
-This repository contains code for a demo of integrating the Kheops shareable albums feature into your application. The code is divided into two scripts:
+This repository contains code for a demo of integrating the Kheops shareable albums feature into Niffler. The code is divided into two scripts:
 
 - `subset_identification.py`: This script searches for DICOM studies that match a set of filter criteria, and creates a subset of those studies in a separate folder. This is useful if you have a large dataset and want to upload only a subset of the data to Kheops.
 - `album_management.py`: This script uploads a folder of DICOM studies to a Kheops shareable album, and generates a shareable link that can be used to access the album.

@@ -1,0 +1,9 @@
+{
+    "dicom_folder_location": "/Users/yuvraj/Downloads/input_dicom_folder",
+    "subset_folder_location": "/Users/yuvraj/Downloads/output_subset_folder",
+    "mongo_uri": "mongodb://127.0.0.1:27017",
+    "db_name": "dicom_metadata_db",
+    "collection_name": "metadata",
+    "kheops_url": "https://your-kheops-instance.com",
+    "kheops_access_token": "your-kheops-access-token"
+}

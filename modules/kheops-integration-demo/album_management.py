@@ -185,7 +185,6 @@ if __name__ == "__main__":
 
     else:
        print("Invalid command. Please enter one of the following commands:")
-       print("  create   : Create a new album")
        print("  list     : List all albums")
        print("  delete   : Delete an album")
        print("  add      : Add a study to an album")

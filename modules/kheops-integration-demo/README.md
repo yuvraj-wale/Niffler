@@ -80,11 +80,11 @@ This will search for DICOM studies that match the filter criteria in filter_crit
 
 To upload the subset of DICOM studies to a Kheops album and generate a shareable link, run the following command in the terminal:
 ```
-python album_management.py create
+python album_management.py 
 ```
 This will upload the DICOM studies in the directory specified by subset_folder_location to a new album in your Kheops instance, and generate a shareable link that can be used to access the album.
 
-You can also use additional album handeling functions by replacing 'create' and adding desired function:
+You can also use additional album handeling functions by adding desired function to the end:
 ```
 python album_management.py <insert_desired_function>
 ```

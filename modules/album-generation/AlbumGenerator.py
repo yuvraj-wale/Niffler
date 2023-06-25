@@ -4,6 +4,7 @@ import pymongo
 import pydicom
 import csv
 import json
+import requests
 
 def read_system_config():
     with open("system.json", "r") as file:
@@ -39,6 +40,39 @@ def create_subset_folder(source_folder, subset_folder, mongo_uri, filter_criteri
 
                         shutil.copy(dicom_file_path, destination_folder)
                         print(f"Copied: {dicom_file_path} to {destination_folder}")
+
+def authenticate(client_id, client_secret, scope):
+    """Authenticates the user and returns an access token.
+
+    Returns:
+        The access token.
+
+    client_id = "YOUR_CLIENT_ID"
+    client_secret = "YOUR_CLIENT_SECRET"
+    scope = "KHEOPS"
+    
+    """
+
+    url = "https://kheops.example.com/token"
+    data = {
+        "grant_type": "client_credentials",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "scope": scope,
+    }
+
+    response = requests.post(url, data=data)
+
+    if response.status_code == 200:
+        tokens = response.json()
+        return tokens["access_token"]
+    elif response.status_code == 400:
+        error_data = response.json()
+        error = error_data.get("error")
+        error_description = error_data.get("error_description")
+        raise Exception(f"Authentication failed. Error: {error}. Description: {error_description}")
+    else:
+        raise Exception("Unexpected error occurred during authentication.")
 
 if __name__ == "__main__":
     system_config = read_system_config()

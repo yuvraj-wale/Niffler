@@ -70,7 +70,7 @@ if __name__ == "__main__":
     subset_folder = system_config["subset_folder_location"]
     mongo_uri = system_config["mongo_uri"]
     kheops_url = system_config["kheops_url"]
-    kheops_access_token = authenticate(kheops_url);
+    kheops_access_token = authenticate(kheops_url)
 
     for filter_criteria in filter_criteria_list:
         create_subset_folder(source_folder, subset_folder, mongo_uri, filter_criteria)

@@ -57,11 +57,11 @@ def read_system_config():
 #                         shutil.copy(dicom_file_path, destination_folder)
 #                         logging.info(f"Copied: {dicom_file_path} to {destination_folder}")
 
-def authenticate(keycloak_url, client_id, username, password):
+def authenticate(keycloak_url, realm_name, client_id, username, password):
     """
     Authenticate and generate an access token from the KHEOPS server.
     """
-    token_url = f'{keycloak_url}/auth/realms/kheops/protocol/openid-connect/token'
+    token_url = f'{keycloak_url}/auth/realms/{realm_name}/protocol/openid-connect/token'
     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
     data = {
         'grant_type': 'password',
@@ -77,7 +77,7 @@ def authenticate(keycloak_url, client_id, username, password):
         access_token = response_data['access_token']
         return access_token
     except requests.exceptions.RequestException as e:
-        raise Exception(f'Error: {str(e)}')
+        raise Exception(f'Authentication failed, {str(e)}.')
     
 def create_album(kheops_url, kheops_access_token, name, description=''):
     """
@@ -100,7 +100,7 @@ def create_album(kheops_url, kheops_access_token, name, description=''):
     album_id = album.get("album_id")
     name = album.get("name")
     description = album.get("description")
-    album_data=f"""
+    album_data=f"""             
                                  Album ID: {album_id}
                                  Name: {name}
                                  Description: {description}
@@ -111,49 +111,49 @@ def create_album(kheops_url, kheops_access_token, name, description=''):
         logging.info(album_data)
         return album.get("album_id")
     elif response.status_code == 404:
-        raise Exception('User not found')
+        raise Exception('Album creation failed, User not found.')
     else:
-        raise Exception('Album creation failed')
+        raise Exception('Album creation failed.')
 
 def generate_album_shareable_link(kheops_url, album_id, kheops_access_token):
     """
     Generate a shareable link to an album by creating a capability token.
     """
-    try:
-        url = f"{kheops_url}/api/capabilities"
-        headers = {
+    # try:
+    url = f"{kheops_url}/api/capabilities"
+    headers = {
             "Authorization": f"Bearer {kheops_access_token}",
             "Accept": "application/json",
             "Content-Type": "application/x-www-form-urlencoded"
-        }
+    }
 
-        payload = {
+    payload = {
             "title": "title",
             "scope_type": "album",
             "album": album_id,
             "read_permission": "true",
-        }
+    }
 
-        response = requests.post(url, headers=headers, data=payload)
+    response = requests.post(url, headers=headers, data=payload)
 
-        if response.status_code == 201:
+    if response.status_code == 201:
             json_data = response.json()
             capability_token = json_data["secret"]
             shareable_link = f"{kheops_url}/view/{capability_token}"
             logging.info("Shareable linke generated!")
             logging.info("NOTE: the link expires in 3 days")
             logging.info("Shareable link: %s", shareable_link)
-        elif response.status_code == 400:
-            logging.info("Invalid parameters.")
-        elif response.status_code == 401:
-            logging.info("User is not authorized as an admin of the album.")
-        elif response.status_code == 404:
-            logging.info("Album not found.")
-        else:
-            logging.info("Failed to generate shareable link.")
+    elif response.status_code == 400:
+        raise Exception("Failed to generate shareable album link, Invalid parameters.")
+    elif response.status_code == 401:
+        raise Exception("Failed to generate shareable album link, User is not authorized as an admin of the album.")
+    elif response.status_code == 404:
+        raise Exception("Failed to generate shareable album link, Album not found.")
+    else:
+        raise Exception("Failed to generate shareable album link.")
 
-    except Exception as e:
-        logging.error(f"An error occurred: {str(e)}")
+    # except Exception as e:
+    #     logging.error(f"An error occurred: {str(e)}")
 
 def get_album_list(kheops_url, kheops_access_token):
     """
@@ -165,21 +165,22 @@ def get_album_list(kheops_url, kheops_access_token):
         "Accept": "application/json"
     }
 
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        albums = response.json()
-        
-        logging.info("List of Albums created : ")
-        for album in albums:
-            album_id = album.get("album_id")
-            name = album.get("name")
-            description = album.get("description")
-            created_time = album.get("created_time")
-            modalities = album.get("modalities")
+    # try:
+    response = requests.get(url, headers=headers)
 
-            # Format the album data for display
-            album_data = f"""
+        # Check the response status code.
+    if response.status_code == 200:
+            albums = response.json()
+            logging.info("List of Albums created : ")
+            for album in albums:
+                album_id = album.get("album_id")
+                name = album.get("name")
+                description = album.get("description")
+                created_time = album.get("created_time")
+                modalities = album.get("modalities")
+
+                # Format the album data for display
+                album_data = f"""
                                  Album ID: {album_id}
                                  Name: {name}
                                  Description: {description}
@@ -187,11 +188,17 @@ def get_album_list(kheops_url, kheops_access_token):
                                  Modalities: {modalities}
             """
 
-            # Display the album data in a pleasing format
-            logging.info(album_data)
+                # Display the album data in a pleasing format
+                logging.info(album_data)
+    elif response.status_code == 400:
+            raise Exception("Failed to retrieve the album list, Invalid parameters.")
+    elif response.status_code == 404:
+            raise Exception("Failed to retrieve the album list, Album not found.")
+    else:
+            raise Exception("Failed to retrieve the album list.")
 
-    except requests.exceptions.RequestException as e:
-        logging.error("Failed to retrieve album list: %s", str(e))
+    # except requests.exceptions.RequestException as e:
+    #     raise Exception("Failed to retrieve album list: %s", str(e))
 
 def delete_album(kheops_url, album_id, kheops_access_token):
     """
@@ -205,13 +212,13 @@ def delete_album(kheops_url, album_id, kheops_access_token):
     response.raise_for_status()
 
     if response.status_code == 204:
-        print("Album deleted successfully!")
+        logging.info("Album deleted successfully!")
     elif response.status_code == 403:
-        raise Exception("User is not an admin")
+        raise Exception("Failed to delete album, User is not an admin.")
     elif response.status_code == 404:
-        raise Exception("User not found or album not found")
+        raise Exception("Failed to delete the album, User not found or album not found.")
     else:
-        raise Exception("Failed to delete album")
+        raise Exception("Failed to delete the album.")
     
 def get_album_details(kheops_url, album_id, kheops_access_token):
     """
@@ -253,13 +260,13 @@ def get_album_details(kheops_url, album_id, kheops_access_token):
         }
         logging.info(album_details)
     elif response.status_code == 400:
-        print("Bad Request. Incorrect query parameters.")
+        raise Exception("Failed to fetch the album details, Bad Request. Incorrect query parameters.")
     elif response.status_code == 403:
-        print("Forbidden. User can't see the users list.")
+        raise Exception("Failed to fetch the album details, Forbidden. User can't see the users list.")
     elif response.status_code == 404:
-        print("Not Found. User not found, album not found, or user is not a member of the album.")
+        raise Exception("Failed to fetch the album details, User not found, album not found, or user is not a member of the album.")
     else:
-        print("An error occurred while fetching album details.")
+        raise Exception("Failed to fetch the album details.")
 
 def edit_album_settings(kheops_url, album_id, kheops_access_token, **kwargs):
     """
@@ -308,11 +315,11 @@ def edit_album_settings(kheops_url, album_id, kheops_access_token, **kwargs):
         logging.info("Album Updated Successfully!, here are the new album settings : ")
         logging.info(album_details)
     elif response.status_code == 403:
-        logging.error("Forbidden. Only admins can edit albums.")
+        raise Exception("Failed to edit the album, Forbidden. Only admins can edit albums.")
     elif response.status_code == 404:
-        logging.error("Not Found. User not found, album not found, or user is not a member of the album.")
+        raise Exception("Failed to edit the album, Not Found. User not found, album not found, or user is not a member of the album.")
     else:
-        logging.error("An error occurred while editing the album.")
+        raise Exception("Failed to edit the album.")
    
 def add_studies_to_album(kheops_url, album_id, subset_folder_location, kheops_access_token):
     """
@@ -428,6 +435,12 @@ def encode_multipart_related(fields, boundary=None):
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    
+    try:
+        pass
+    except Exception as e:
+        logging.error(f"ERROR : {e}")
+
 
     url="http://127.0.0.1"
     keycloak_url="http://127.0.0.1:8080"

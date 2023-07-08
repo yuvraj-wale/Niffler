@@ -57,17 +57,17 @@ def read_system_config():
 #                         shutil.copy(dicom_file_path, destination_folder)
 #                         logging.info(f"Copied: {dicom_file_path} to {destination_folder}")
 
-def authenticate():#client_id, client_secret, username, password):
+def authenticate(keycloak_url, client_id, username, password):
     """
     Authenticate and generate an access token from the KHEOPS server.
     """
-    token_url = 'http://127.0.0.1:8080/auth/realms/kheops/protocol/openid-connect/token'
+    token_url = f'{keycloak_url}/auth/realms/kheops/protocol/openid-connect/token'
     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
     data = {
         'grant_type': 'password',
-        'client_id': 'loginConnect',
-        'username': 'yuvrajwale16@gmail.com',
-        'password': '123456',
+        'client_id': client_id,
+        'username': username,
+        'password': password,
         'scope': 'kheops'
     }
     try:
@@ -75,7 +75,6 @@ def authenticate():#client_id, client_secret, username, password):
         response.raise_for_status()  # Raise an exception if the response status is an error code
         response_data = response.json()
         access_token = response_data['access_token']
-        logging.info(access_token)
         return access_token
     except requests.exceptions.RequestException as e:
         raise Exception(f'Error: {str(e)}')
@@ -86,7 +85,7 @@ def create_album(kheops_url, kheops_access_token, name, description=''):
     """
     url = f"{kheops_url}/api/albums"
     headers = {
-        "Authorization": f"Bearer {kheops_access_token}",   #1prTyaWLFT3ZkPhCT58X93",
+        "Authorization": f"Bearer {kheops_access_token}",
         'Accept': 'application/json',
         'Content-Type': 'application/x-www-form-urlencoded'
     }
@@ -110,22 +109,20 @@ def create_album(kheops_url, kheops_access_token, name, description=''):
     if response.status_code == 201:
         logging.info("Album created succesfully!")
         logging.info(album_data)
-        # logging.info(album_data)
-        # return album.get("album_id")
+        return album.get("album_id")
     elif response.status_code == 404:
         raise Exception('User not found')
     else:
         raise Exception('Album creation failed')
 
-def generate_album_shareable_link(kheops_url, album_id, title, kheops_access_token):
+def generate_album_shareable_link(kheops_url, album_id, kheops_access_token):
     """
     Generate a shareable link to an album by creating a capability token.
     """
-    # ENfjtyVtBLONQRlH6DRSc4
     try:
         url = f"{kheops_url}/api/capabilities"
         headers = {
-            "Authorization": f"Bearer {kheops_access_token}",   #1prTyaWLFT3ZkPhCT58X93",
+            "Authorization": f"Bearer {kheops_access_token}",
             "Accept": "application/json",
             "Content-Type": "application/x-www-form-urlencoded"
         }
@@ -133,7 +130,7 @@ def generate_album_shareable_link(kheops_url, album_id, title, kheops_access_tok
         payload = {
             "title": "title",
             "scope_type": "album",
-            "album": "i9BT8V5KiK",
+            "album": album_id,
             "read_permission": "true",
         }
 
@@ -164,7 +161,7 @@ def get_album_list(kheops_url, kheops_access_token):
     """
     url = f"{kheops_url}/api/albums"
     headers = {
-        "Authorization": f"Bearer {kheops_access_token}",  # 1prTyaWLFT3ZkPhCT58X93",
+        "Authorization": f"Bearer {kheops_access_token}",
         "Accept": "application/json"
     }
 
@@ -196,29 +193,126 @@ def get_album_list(kheops_url, kheops_access_token):
     except requests.exceptions.RequestException as e:
         logging.error("Failed to retrieve album list: %s", str(e))
 
-def extract_study_instance_uid(dicom_file_path):
+def delete_album(kheops_url, album_id, kheops_access_token):
     """
-    Extract the Study Instance UID from a DICOM file.
+    Delete an album.
     """
-    logging.info("checking 1")
-    ds = pydicom.dcmread(dicom_file_path)
-    study_instance_uid = ds.StudyInstanceUID
-    return study_instance_uid
+    url = f"{kheops_url}/api/albums/{album_id}"
+    headers = {
+        'Authorization': f"Bearer {kheops_access_token}"
+    }
+    response = requests.delete(url, headers=headers)
+    response.raise_for_status()
 
-def get_study_instance_uid(study_folder_location):
+    if response.status_code == 204:
+        print("Album deleted successfully!")
+    elif response.status_code == 403:
+        raise Exception("User is not an admin")
+    elif response.status_code == 404:
+        raise Exception("User not found or album not found")
+    else:
+        raise Exception("Failed to delete album")
+    
+def get_album_details(kheops_url, album_id, kheops_access_token):
     """
-    Get the Study Instance UID from the study folder.
+    Get album details for a specific album.
     """
-    # Assuming the study folder contains DICOM files and the Study Instance UID is present in the DICOM metadata
-    logging.info("checking 2")
-    for root, _, files in os.walk(study_folder_location):
-        for filename in files:
-            dicom_file_path = os.path.join(root, filename)
-            if is_dicom_file(dicom_file_path):
-                study_instance_uid = extract_study_instance_uid(dicom_file_path)
-                return study_instance_uid
+    url = f"{kheops_url}/api/albums/{album_id}"
+    headers = {
+        "Authorization": f"Bearer {kheops_access_token}",
+        "Accept": "application/json"
+    }
 
-    raise Exception("Study Instance UID not found in the study folder.")
+    response = requests.get(url, headers=headers)
+
+    if response.status_code == 200:
+        album_data = response.json()
+
+        # Extract the necessary details from the album_data
+        album_details = {
+            "album_id": album_data.get("album_id"),
+            "name": album_data.get("name"),
+            "description": album_data.get("description"),
+            "created_time": album_data.get("created_time"),
+            "last_event_time": album_data.get("last_event_time"),
+            "number_of_users": album_data.get("number_of_users"),
+            "modalities": album_data.get("modalities"),
+            "number_of_comments": album_data.get("number_of_comments"),
+            "number_of_studies": album_data.get("number_of_studies"),
+            "number_of_series": album_data.get("number_of_series"),
+            "add_user": album_data.get("add_user"),
+            "download_series": album_data.get("download_series"),
+            "send_series": album_data.get("send_series"),
+            "delete_series": album_data.get("delete_series"),
+            "add_series": album_data.get("add_series"),
+            "write_comments": album_data.get("write_comments"),
+            "is_favorite": album_data.get("is_favorite"),
+            "notification_new_series": album_data.get("notification_new_series"),
+            "notification_new_comment": album_data.get("notification_new_comment"),
+            "is_admin": album_data.get("is_admin")
+        }
+        logging.info(album_details)
+    elif response.status_code == 400:
+        print("Bad Request. Incorrect query parameters.")
+    elif response.status_code == 403:
+        print("Forbidden. User can't see the users list.")
+    elif response.status_code == 404:
+        print("Not Found. User not found, album not found, or user is not a member of the album.")
+    else:
+        print("An error occurred while fetching album details.")
+
+def edit_album_settings(kheops_url, album_id, kheops_access_token, **kwargs):
+    """
+    Edit an album with the provided parameters.
+    """
+    url = f"{kheops_url}/api/albums/{album_id}"
+    headers = {
+        "Authorization": f"Bearer {kheops_access_token}",
+        "Accept": "application/json",
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+
+    payload = {}
+    for key, value in kwargs.items():
+        if value is not None:
+            payload[key] = str(value).lower()
+
+    response = requests.patch(url, headers=headers, data=payload)
+
+    if response.status_code == 200:
+        album_data = response.json()
+
+        # Extract the necessary details from the album_data
+        album_details = {
+            "album_id": album_data.get("album_id"),
+            "name": album_data.get("name"),
+            "description": album_data.get("description"),
+            "created_time": album_data.get("created_time"),
+            "last_event_time": album_data.get("last_event_time"),
+            "number_of_users": album_data.get("number_of_users"),
+            "modalities": album_data.get("modalities"),
+            "number_of_comments": album_data.get("number_of_comments"),
+            "number_of_studies": album_data.get("number_of_studies"),
+            "number_of_series": album_data.get("number_of_series"),
+            "add_user": album_data.get("add_user"),
+            "download_series": album_data.get("download_series"),
+            "send_series": album_data.get("send_series"),
+            "delete_series": album_data.get("delete_series"),
+            "add_series": album_data.get("add_series"),
+            "write_comments": album_data.get("write_comments"),
+            "is_favorite": album_data.get("is_favorite"),
+            "notification_new_series": album_data.get("notification_new_series"),
+            "notification_new_comment": album_data.get("notification_new_comment"),
+            "is_admin": album_data.get("is_admin")
+        }
+        logging.info("Album Updated Successfully!, here are the new album settings : ")
+        logging.info(album_details)
+    elif response.status_code == 403:
+        logging.error("Forbidden. Only admins can edit albums.")
+    elif response.status_code == 404:
+        logging.error("Not Found. User not found, album not found, or user is not a member of the album.")
+    else:
+        logging.error("An error occurred while editing the album.")
    
 def add_studies_to_album(kheops_url, album_id, subset_folder_location, kheops_access_token):
     """
@@ -292,32 +386,36 @@ def add_series(kheops_url, kheops_access_token, series_folder, study_instance_ui
     else:
         print("An error occurred while adding the series.")
 
+def extract_study_instance_uid(dicom_file_path):
+    """
+    Extract the Study Instance UID from a DICOM file.
+    """
+    logging.info("checking 1")
+    ds = pydicom.dcmread(dicom_file_path)
+    study_instance_uid = ds.StudyInstanceUID
+    return study_instance_uid
+
+def get_study_instance_uid(study_folder_location):
+    """
+    Get the Study Instance UID from the study folder.
+    """
+    # Assuming the study folder contains DICOM files and the Study Instance UID is present in the DICOM metadata
+    logging.info("checking 2")
+    for root, _, files in os.walk(study_folder_location):
+        for filename in files:
+            dicom_file_path = os.path.join(root, filename)
+            if is_dicom_file(dicom_file_path):
+                study_instance_uid = extract_study_instance_uid(dicom_file_path)
+                return study_instance_uid
+
+    raise Exception("Study Instance UID not found in the study folder.")
+
 def is_dicom_file(file_path):
     try:
         dicom_file = pydicom.dcmread(file_path)
         return True
     except pydicom.errors.InvalidDicomError:
         return False
-
-def delete_album(kheops_url, album_id, kheops_access_token):
-    """
-    Delete an album.
-    """
-    url = f"{kheops_url}/api/albums/{album_id}"
-    headers = {
-        'Authorization': f"Bearer {kheops_access_token}"
-    }
-    response = requests.delete(url, headers=headers)
-    response.raise_for_status()
-
-    if response.status_code == 204:
-        print("Album deleted successfully!")
-    elif response.status_code == 403:
-        raise Exception("User is not an admin")
-    elif response.status_code == 404:
-        raise Exception("User not found or album not found")
-    else:
-        raise Exception("Failed to delete album")
 
 def encode_multipart_related(fields, boundary=None):
     # if boundary is None:
@@ -330,11 +428,52 @@ def encode_multipart_related(fields, boundary=None):
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
     url="http://127.0.0.1"
-    token=authenticate()
+    keycloak_url="http://127.0.0.1:8080"
+
+    #authenticate
+    logging.info("TEST AUTHENTICATE")
+    name=input("Enter Username or Email ID : ")
+    password=input("Enter Password : ")
+    token=authenticate(keycloak_url,"loginConnect",name,password)
+    logging.info(token)
+    
+    #create album
+    logging.info("TEST CREATE ALBUM")
+    album_id = create_album(url,token,"xyz","no description")
+    
+    #generate album link
+    logging.info("TEST GENERATE ALBUM LINK")
+    generate_album_shareable_link(url,album_id,token)
+    
+    #get list of albums
+    logging.info("TESTS GET ALBUM LIST")
     get_album_list("http://127.0.0.1",token)
-    # generate_album_shareable_link(url,"x","x",token)
-    add_studies_to_album(url,"0fByVrfZfc","/home/yuraj/Downloads/DICOM",token )
+    
+    #delete album
+    logging.info("TEST DELETE ALBUM")
+    delete_album_id=input("enter album id to delete : ")
+    delete_album(url,delete_album_id,token)
+    
+    #get album metadata
+    logging.info("TEST GET ALBUM DETAILS")
+    get_album_details(url, album_id, token)
+
+    #edit album details
+    logging.info("TEST EDIT ALBUM DETAILS")
+    name = input("Enter new name (leave empty to keep current name): ")
+    description = input("Enter new description (leave empty to keep current description): ")
+    add_user = input("Allow adding users (true/false): ")
+    download_series = input("Allow downloading series (true/false): ")
+    send_series = input("Allow sending series (true/false): ")
+    delete_series = input("Allow deleting series (true/false): ")
+    add_series = input("Allow adding series (true/false): ")
+    write_comments = input("Allow writing comments (true/false): ")
+    notification_new_series = input("Enable new series notifications (true/false): ")
+    notification_new_comment = input("Enable new comment notifications (true/false): ")  
+    edit_album_settings(url, album_id,token,name=name,description=description,add_user=add_user,download_series=download_series,send_series=send_series,delete_series=delete_series,add_series=add_series,write_comments=write_comments,notification_new_series=notification_new_series,notification_new_comment=notification_new_comment)
+    # add_studies_to_album(url,"0fByVrfZfc","/home/yuraj/Downloads/DICOM",token )
     # album_id=input("enter album id : ")
     # delete_album(url,album_id,token)
     # create_album(url,token,'create album test','hmmm')

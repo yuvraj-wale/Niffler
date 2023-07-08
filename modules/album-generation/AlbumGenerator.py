@@ -7,13 +7,14 @@ import pydicom
 import pymongo
 import logging
 
+from urllib3 import encode_multipart_formdata
+
 def read_system_config():
     """
     Read the system configuration from the "system.json" file.
     """
-    with open("system.json", "r") as file:
+    with open("config.json", "r") as file:
         return json.load(file)
-
 
 # def read_filter_criteria_csv(csv_file_path):
 #     """
@@ -56,36 +57,36 @@ def read_system_config():
 #                         shutil.copy(dicom_file_path, destination_folder)
 #                         logging.info(f"Copied: {dicom_file_path} to {destination_folder}")
 
-# def authenticate(kheops_url):
-#     """
-#     Authenticate and generate an access token from the KHEOPS server.
-#     """
-#     url = f"{kheops_url}/api/token"
-
-#     headers = {
-#         "Content-Type": "application/x-www-form-urlencoded"
-#     }
-
-#     response = requests.post(url, headers=headers)
-
-#     if response.status_code == 200:
-#         json_data = response.json()
-#         access_token = json_data["access_token"]
-#         return access_token
-#     elif response.status_code == 400:
-#         json_data = response.json()
-#         error = json_data.get("error")
-#         error_description = json_data.get("error_description")
-#         raise Exception(f"Error: {error}, Description: {error_description}")
-#     else:
-#         raise Exception("Unexpected response from the server.")
-
-def create_album(kheops_url, name, description=''):
+def authenticate():#client_id, client_secret, username, password):
+    """
+    Authenticate and generate an access token from the KHEOPS server.
+    """
+    token_url = 'http://127.0.0.1:8080/auth/realms/kheops/protocol/openid-connect/token'
+    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+    data = {
+        'grant_type': 'password',
+        'client_id': 'loginConnect',
+        'username': 'yuvrajwale16@gmail.com',
+        'password': '123456',
+        'scope': 'kheops'
+    }
+    try:
+        response = requests.post(token_url, headers=headers, data=data)
+        response.raise_for_status()  # Raise an exception if the response status is an error code
+        response_data = response.json()
+        access_token = response_data['access_token']
+        logging.info(access_token)
+        return access_token
+    except requests.exceptions.RequestException as e:
+        raise Exception(f'Error: {str(e)}')
+    
+def create_album(kheops_url, kheops_access_token, name, description=''):
     """
     Create a new album on the KHEOPS server.
     """
     url = f"{kheops_url}/api/albums"
     headers = {
+        "Authorization": f"Bearer {kheops_access_token}",   #1prTyaWLFT3ZkPhCT58X93",
         'Accept': 'application/json',
         'Content-Type': 'application/x-www-form-urlencoded'
     }
@@ -94,20 +95,23 @@ def create_album(kheops_url, name, description=''):
         'description': description[:2048],
     }
     response = requests.post(url, headers=headers, data=payload)
+    response.raise_for_status()
+
     album=response.json()
     album_id = album.get("album_id")
     name = album.get("name")
     description = album.get("description")
     album_data=f"""
-    Album ID: {album_id}
-    Name: {name}
-    Description: {description}
+                                 Album ID: {album_id}
+                                 Name: {name}
+                                 Description: {description}
     """
 
     if response.status_code == 201:
         logging.info("Album created succesfully!")
         logging.info(album_data)
-        return album
+        # logging.info(album_data)
+        # return album.get("album_id")
     elif response.status_code == 404:
         raise Exception('User not found')
     else:
@@ -117,20 +121,20 @@ def generate_album_shareable_link(kheops_url, album_id, title, kheops_access_tok
     """
     Generate a shareable link to an album by creating a capability token.
     """
+    # ENfjtyVtBLONQRlH6DRSc4
     try:
         url = f"{kheops_url}/api/capabilities"
         headers = {
-            "Authorization": f"Bearer {kheops_access_token}",
+            "Authorization": f"Bearer {kheops_access_token}",   #1prTyaWLFT3ZkPhCT58X93",
             "Accept": "application/json",
             "Content-Type": "application/x-www-form-urlencoded"
         }
 
         payload = {
-            "title": title,
+            "title": "title",
             "scope_type": "album",
-            "album": album_id,
+            "album": "i9BT8V5KiK",
             "read_permission": "true",
-            "download_permission": "true"
         }
 
         response = requests.post(url, headers=headers, data=payload)
@@ -141,7 +145,7 @@ def generate_album_shareable_link(kheops_url, album_id, title, kheops_access_tok
             shareable_link = f"{kheops_url}/view/{capability_token}"
             logging.info("Shareable linke generated!")
             logging.info("NOTE: the link expires in 3 days")
-            logging.info("Shareable link:", shareable_link)
+            logging.info("Shareable link: %s", shareable_link)
         elif response.status_code == 400:
             logging.info("Invalid parameters.")
         elif response.status_code == 401:
@@ -160,7 +164,7 @@ def get_album_list(kheops_url, kheops_access_token):
     """
     url = f"{kheops_url}/api/albums"
     headers = {
-        "Authorization": kheops_access_token,
+        "Authorization": f"Bearer {kheops_access_token}",  # 1prTyaWLFT3ZkPhCT58X93",
         "Accept": "application/json"
     }
 
@@ -168,7 +172,8 @@ def get_album_list(kheops_url, kheops_access_token):
         response = requests.get(url, headers=headers)
         response.raise_for_status()
         albums = response.json()
-
+        
+        logging.info("List of Albums created : ")
         for album in albums:
             album_id = album.get("album_id")
             name = album.get("name")
@@ -178,11 +183,11 @@ def get_album_list(kheops_url, kheops_access_token):
 
             # Format the album data for display
             album_data = f"""
-            Album ID: {album_id}
-            Name: {name}
-            Description: {description}
-            Created Time: {created_time}
-            Modalities: {modalities}
+                                 Album ID: {album_id}
+                                 Name: {name}
+                                 Description: {description}
+                                 Created Time: {created_time}
+                                 Modalities: {modalities}
             """
 
             # Display the album data in a pleasing format
@@ -195,6 +200,7 @@ def extract_study_instance_uid(dicom_file_path):
     """
     Extract the Study Instance UID from a DICOM file.
     """
+    logging.info("checking 1")
     ds = pydicom.dcmread(dicom_file_path)
     study_instance_uid = ds.StudyInstanceUID
     return study_instance_uid
@@ -204,12 +210,11 @@ def get_study_instance_uid(study_folder_location):
     Get the Study Instance UID from the study folder.
     """
     # Assuming the study folder contains DICOM files and the Study Instance UID is present in the DICOM metadata
-
-    for root, dirs, files in os.walk(study_folder_location):
+    logging.info("checking 2")
+    for root, _, files in os.walk(study_folder_location):
         for filename in files:
-            if filename.endswith('.dcm'):
-                dicom_file_path = os.path.join(root, filename)
-                # Extract the Study Instance UID from the DICOM file
+            dicom_file_path = os.path.join(root, filename)
+            if is_dicom_file(dicom_file_path):
                 study_instance_uid = extract_study_instance_uid(dicom_file_path)
                 return study_instance_uid
 
@@ -221,14 +226,32 @@ def add_studies_to_album(kheops_url, album_id, subset_folder_location, kheops_ac
     """
     try:
         study_instance_uid = get_study_instance_uid(subset_folder_location)
+        logging.info(study_instance_uid)
         url = f"{kheops_url}/api/studies/{study_instance_uid}/albums/{album_id}"
+
+        series_files = []
+        for root, _, files in os.walk(subset_folder_location):
+            for file_name in files:
+                file_path = os.path.join(root, file_name)
+                if is_dicom_file(file_path):
+                    with open(file_path, 'rb') as file:
+                        file_data = file.read()
+                        series_files.append(('file', (file_name, file_data, 'application/dicom')))
+                    # logging.info("checkpoint 3")
+                    # series_files.append(('file', (file_name, open(file_path, 'rb'), 'application/dicom')))
+        logging.info("checkpoint 4")
+
+        body, content_type = encode_multipart_related(series_files)
 
         headers = {
             "Authorization": f"Bearer {kheops_access_token}",
-            "X-Authorization-Source": "Bearer album_capability_token"
+            "Accept": "application/dicom+json",
+            "Content-Type": content_type
         }
-
-        response = requests.put(url, headers=headers)
+        
+        response = requests.put(url, data=body, headers=headers)
+        logging.info(response.status_code)
+        response.raise_for_status()
 
         if response.status_code == 201:
             print("Study added to album successfully.")
@@ -237,59 +260,119 @@ def add_studies_to_album(kheops_url, album_id, subset_folder_location, kheops_ac
         elif response.status_code == 404:
             print("User not found, album not found, or study not present in the source.")
         else:
-            print("Failed to add study to album.")
-    
+            print("Failed to add study to album.")    
     except Exception as e:
         print(f"An error occurred: {str(e)}")
 
-def add_series():
+def add_series(kheops_url, kheops_access_token, series_folder, study_instance_uid, series_instance_uid, album_id):
     """
     Add series to an album.
     """
-    pass
+    url = f"{kheops_url}/api/studies/{study_instance_uid}/series/{series_instance_uid}/albums/{album_id}"
+    headers = {
+        "Authorization": f"Bearer {kheops_access_token}",
+        # "X-Authorization-Source": f"Bearer {token}"  # Optional: Use this header if sending the series from another album
+    }
 
+    series_files = []
+    for root, _, files in os.walk(series_folder):
+        for file_name in files:
+            file_path = os.path.join(root, file_name)
+            if is_dicom_file(file_path):
+                series_files.append(('file', (file_name, open(file_path, 'rb'))))
 
-def delete_album():
+    response = requests.put(url, headers=headers, files=series_files)
+
+    if response.status_code == 201:
+        print("Series added successfully.")
+    elif response.status_code == 403:
+        print("Access forbidden. User is not an admin or does not have 'addSeries' permission.")
+    elif response.status_code == 404:
+        print("Not found. User not found, album ID does not exist, user is not a member of the album, or series is not present.")
+    else:
+        print("An error occurred while adding the series.")
+
+def is_dicom_file(file_path):
+    try:
+        dicom_file = pydicom.dcmread(file_path)
+        return True
+    except pydicom.errors.InvalidDicomError:
+        return False
+
+def delete_album(kheops_url, album_id, kheops_access_token):
     """
     Delete an album.
     """
-    pass
+    url = f"{kheops_url}/api/albums/{album_id}"
+    headers = {
+        'Authorization': f"Bearer {kheops_access_token}"
+    }
+    response = requests.delete(url, headers=headers)
+    response.raise_for_status()
+
+    if response.status_code == 204:
+        print("Album deleted successfully!")
+    elif response.status_code == 403:
+        raise Exception("User is not an admin")
+    elif response.status_code == 404:
+        raise Exception("User not found or album not found")
+    else:
+        raise Exception("Failed to delete album")
+
+def encode_multipart_related(fields, boundary=None):
+    # if boundary is None:
+    #     boundary = choose_boundary()
+    logging.info("checkpoint 5")
+    body, _ = encode_multipart_formdata(fields, boundary)
+    content_type = str('multipart/related; boundary=%s' % boundary)
+
+    return body, content_type
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    url="http://127.0.0.1"
+    token=authenticate()
+    get_album_list("http://127.0.0.1",token)
+    # generate_album_shareable_link(url,"x","x",token)
+    add_studies_to_album(url,"0fByVrfZfc","/home/yuraj/Downloads/DICOM",token )
+    # album_id=input("enter album id : ")
+    # delete_album(url,album_id,token)
+    # create_album(url,token,'create album test','hmmm')
+    # logging.info(token)
+    # # system_config = read_system_config()
+    # # filter_criteria_list = read_filter_criteria_csv("filter_criteria.csv")
+    # # mongo_uri = system_config["mongo_uri"]
+    # # kheops_url = system_config["kheops_url"]
+    # # kheops_access_token = system_config["kheops_access_token"]
+    # # source_folder = system_config["dicom_folder_location"]
+    # # subset_folder = system_config["subset_folder_location"]
+    # kheops_access_token= "SuB9swhVTYQyCMYP27TDOe"
+    # kheops_url= "http://127.0.0.1"
+    # subset_folder= "/home/yuraj/Downloads/DICOM"
+    # # Check if additional command-line arguments are provided
+    # import sys
 
-    system_config = read_system_config()
-    # filter_criteria_list = read_filter_criteria_csv("filter_criteria.csv")
-    # mongo_uri = system_config["mongo_uri"]
-    kheops_url = system_config["kheops_url"]
-    kheops_access_token = system_config["kheops_access_token"]
-    source_folder = system_config["dicom_folder_location"]
-    subset_folder = system_config["subset_folder_location"]
+    # if len(sys.argv) > 1:
+    #     if sys.argv[1] == "show_album_list":
+    #         # Print the list of album details
+    #         get_album_list(kheops_url, kheops_access_token)
+    #     elif sys.argv[1] == "generate_album_link":
+    #         # Generate and display the shareable link
+    #         album_id = input("Please enter the album id: ")
+    #         generate_album_shareable_link(kheops_url, album_id, "Shareable Link" , kheops_access_token)
+    #     else:
+    #         print("Invalid command-line argument.")
+    # else:
+    #     name = input("Enter the album name: ")
+    #     description = input("Enter the album description (optional): ")
 
-    # Check if additional command-line arguments are provided
-    import sys
+    #     # Create the album using user input
+    #     album_data = create_album(kheops_url, name, description)
+    #     album_id = album_data["album_id"]
 
-    if len(sys.argv) > 1:
-        if sys.argv[1] == "show_album_list":
-            # Print the list of album details
-            get_album_list(kheops_url, kheops_access_token)
-        elif sys.argv[1] == "generate_album_link":
-            # Generate and display the shareable link
-            album_id = input("Enter Album Id")
-            generate_album_shareable_link(kheops_url, album_id, "Shareable Link" , kheops_access_token)
-        else:
-            print("Invalid command-line argument.")
-    else:
-        name = input("Enter the album name: ")
-        description = input("Enter the album description (optional): ")
+    #     # Add studies to the album
+    #     add_studies_to_album(kheops_url, album_id, subset_folder, kheops_access_token)
 
-        # Create the album using user input
-        album_data = create_album(kheops_url, name, description)
-        album_id = album_data["album_id"]
-
-        # Add studies to the album
-        add_studies_to_album(kheops_url, album_id, subset_folder, kheops_access_token)
-
-        # Generate and display the shareable link
-        generate_album_shareable_link(kheops_url, album_id, "Shareable Link", kheops_access_token)
+    #     # Generate and display the shareable link
+    #     generate_album_shareable_link(kheops_url, album_id, "Shareable Link", kheops_access_token)
 

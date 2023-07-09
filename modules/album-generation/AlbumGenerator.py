@@ -168,7 +168,6 @@ def get_album_list(kheops_url, kheops_access_token):
 
     response = requests.get(url, headers=headers)
 
-    # Check the response status code.
     if response.status_code == 200:
             albums = response.json()
             logging.info(" List of Albums to choose from : ")
@@ -197,7 +196,7 @@ def get_album_list(kheops_url, kheops_access_token):
 
 def get_detailed_album_list(kheops_url, kheops_access_token):
     """
-    Get a list of available albums.
+    Get a detailed list of available albums.
     """
     url = f"{kheops_url}/api/albums"
     headers = {
@@ -334,7 +333,7 @@ def get_album_details(kheops_url, album_id, kheops_access_token):
     else:
         raise Exception("Failed to fetch the album details.")
 
-def edit_album_settings(kheops_url, album_id, kheops_access_token, **kwargs): # name="",description="",add_user='',download_series='',send_series='',delete_series='',add_series='',write_comments='',notification_new_series='',notification_new_comment=''):
+def edit_album_settings(kheops_url, album_id, kheops_access_token, **kwargs): 
     """
     Edit an album with the provided parameters.
     """
@@ -349,13 +348,10 @@ def edit_album_settings(kheops_url, album_id, kheops_access_token, **kwargs): # 
     for key, value in kwargs.items():
         if value is not None:
             payload[key] = str(value).lower()
-    logging.info(payload)
     response = requests.patch(url, headers=headers, data=payload)
 
     if response.status_code == 200:
-        logging.info("reached")
         album_data_ = response.json()
-        logging.info(album_data_)
         # Extract the necessary details from the album_data
         album_details_ = {
             "album_id": album_data_.get("album_id"),
@@ -564,7 +560,7 @@ if __name__ == "__main__":
     try:
         # User Authentication
         access_token = authenticate(KEYCLOAK_URL,REALM_NAME,CLIENT_ID,USERNAME,PASSWORD,)
-        
+
         import sys
 
         if len(sys.argv) > 1:
